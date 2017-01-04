@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Window xmlns:mx="http://www.adobe.com/2006/mxml" layout="absolute" width="800" height="450" verticalScrollPolicy="off" horizontalScrollPolicy="off"
+	showStatusBar="false" type="lightweight" systemChrome="none" title="Graph" resize="handleResize(event)">
+		<mx:Canvas id="imageCanvas" width="60" left="0" top="0" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+			<mx:Image id="i5" source="assets/best-orange" width="60" height="60" top="10" />
+			<mx:Image id="i4" source="assets/good.jpg" width="60" height="60" top="73"/>
+			<mx:Image id="i3" source="assets/ok.jpg" width="60" height="60" top="136" />
+			<mx:Image id="i2" source="assets/bad.jpg" width="60" height="60" top="199" />
+			<mx:Image id="i1" source="assets/worst-green.jpg" width="60" height="60" top="265" />
+		</mx:Canvas>
+		<mx:VBox width="60" left="0" bottom="0" height="80" horizontalScrollPolicy="off" verticalScrollPolicy="off" verticalGap="0"
+			borderColor="0x808080" borderStyle="solid" borderThickness="1" borderSides="top" paddingTop="4" >
+			<mx:Label text="Group By:" fontWeight="bold"/>
+			<mx:RadioButton groupName="groupby" label="All" height="18" selected="true"/>
+			<mx:RadioButton groupName="groupby" label="Day" height="18"/>
+			<mx:RadioButton groupName="groupby" label="Hour" height="18"/>
+		</mx:VBox>
+		<mx:Canvas height="92%" left="60" right="0" verticalScrollPolicy="off" 
+			borderColor="0x808080" borderStyle="solid" borderThickness="1" borderSides="left" >	
+			<mx:LineChart id="chart" width="730" height="95%" showDataTips="true" dataTipFunction="customizeDataTip">
+				<mx:horizontalAxis>
+        			<mx:DateTimeAxis id="xaxis" labelUnits="days" />
+        		</mx:horizontalAxis>
+        		<mx:verticalAxis>
+        			<mx:LinearAxis minimum="-5" maximum="5" interval="1"/>
+        		</mx:verticalAxis>
+				<mx:series>
+            		<mx:AreaSeries yField="mood5" xField="fdate" form="curve" displayName="Mood" areaStroke="{s1}" areaFill="{lg}" itemRenderer="mx.charts.renderers.CircleItemRenderer"  />
+        		</mx:series>
+			</mx:LineChart>
+		</mx:Canvas>
+		<mx:Canvas left="60" right="0" height="8%" borderColor="0x808080" borderStyle="solid" borderThickness="1" borderSides="top left" bottom="0">
+			<mx:Label text="Scale:" horizontalCenter="-200" bottom="5" fontWeight="bold"/>
+			<mx:HSlider id="slider" bottom="8" horizontalCenter="0" width="350" minimum="1.0" maximum="20" change="sliderUpdate(event)" 
+				tickInterval="2" snapInterval="0.1" dataTipPrecision="1" thumbOffset="0" />
+		</mx:Canvas>
+		<mx:Stroke id = "s1" color="0x505050" weight="1" />
+   		<mx:LinearGradient angle="90" id="lg">
+    		<mx:entries>
+     			<mx:GradientEntry color="0xff6702" ratio="0" alpha=".95"/>
+     			<mx:GradientEntry color="0xffffff" ratio=".4" alpha=".95"/>
+     			<mx:GradientEntry color="0xffffff" ratio=".6" alpha=".95"/>
+     			<mx:GradientEntry color="0x86a468" ratio=".8" alpha=".95"/>
+    		</mx:entries>
+   		</mx:LinearGradient>
+
+		
+	<mx:Script>
+		<![CDATA[
+			import mx.charts.HitData;
+			import mx.charts.chartClasses.DataDescription;
+			import mx.formatters.DateFormatter;
+			import mx.graphics.LinearGradient;
+			
+			public function getChart(): LineChart {return chart;}
+			private function sliderUpdate(e:Event):void {
+				chart.width = slider.value * (width - 70);
+			}
+			public function setMinMax(min:Date, max:Date):void {
+				trace('setting min max', min, max);
+				xaxis.minimum = min;
+				xaxis.maximum = max;
+			}
+			private function handleResize(e:Event):void {
+				// window was resize, reposition icons
+				if (!i1) return;				// don't run until images are set up
+				var h:int = this.height;
+				var gheight:int = (h*.82)-20;		// height of y axis
+				var interval:int = gheight/10;		// interval between each graph division (-5 to +5)
+				i5.setStyle('top',5 + interval - 30);
+				i4.setStyle('top',5 + interval*3 - 30);		// center this one on third interval down, image is 60 high
+				i3.setStyle('top',5 + interval*5 - 30);
+				i2.setStyle('top',5 + interval*7 - 30);
+				i1.setStyle('top',5 + interval*9 - 30);
+			}
+			public function setTitle():void {
+				// set the widow title for graph range
+	        	var df:DateFormatter = new DateFormatter();
+	        	df.formatString="EEE MMM DD YYYY";
+	        	var minDateStr:String = df.format(chart.dataProvider[0].date) as String;
+	        	var maxDateStr:String = df.format(chart.dataProvider[chart.dataProvider.length - 1].date) as String;
+	        	var title:String = "Mood Graph: "+minDateStr+" to "+maxDateStr;
+	        	this.title = title;
+			}
+			private function customizeDataTip(hd:HitData):String {
+				// create the data tip string
+				var ttip:String = hd.item.fdate + "\n";
+				if (hd.item.why.length > 0)
+					return ttip+ hd.item.why;
+				else
+					return ttip + "?";
+			}
+		]]>
+	</mx:Script>
+</mx:Window>

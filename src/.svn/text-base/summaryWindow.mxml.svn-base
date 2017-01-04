@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Window xmlns:mx="http://www.adobe.com/2006/mxml" layout="absolute" systemChrome="none" showTitleBar="false" showStatusBar="false" width="150" height="171" transparent="true" 
+	horizontalScrollPolicy="off" verticalScrollPolicy="off" resize="mmsetBounds(event)" styleName="sumBorderStyle"
+	borderColor="0x404040" borderStyle="solid" borderThickness="2" cornerRadius="5" backgroundAlpha="0"  >
+	<mx:VBox width="100%" height="100%" verticalGap="2" paddingTop="1"  horizontalScrollPolicy="off" verticalScrollPolicy="off" horizontalAlign="center" cornerRadius="5" backgroundColor="0xc0c0c0">
+		<mx:Canvas id="titleArea" width="100%" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+			<mx:Button skin="@Embed(source='assets/closebtn.png')" downSkin="@Embed(source='assets/closebtndown.png')" left="2" click="closeSummary(event)"/>
+			<mx:Image source="assets/moodmaestrosmall.gif" visible="true" horizontalCenter="7" />
+		</mx:Canvas>
+		<mx:Canvas id="canv" width="100%" height="100%" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+			<mx:Image id="mood" width="100%" height="100%" source="assets/best.jpg" visible="true" horizontalCenter="0" maintainAspectRatio="false" />
+		</mx:Canvas>
+	</mx:VBox>
+	<mx:Zoom id="zoomup" target="{mood}" zoomHeightFrom="1.0" zoomWidthFrom="1.0" zoomHeightTo="1.05" zoomWidthTo="1.05" duration="200" startDelay="300" easingFunction="Quadratic.easeIn"/>
+	<mx:Zoom id="zoomdown" target="{mood}" zoomHeightFrom="1.05" zoomWidthFrom="1.05" zoomHeightTo="1.0" zoomWidthTo="1.0" duration="200" easingFunction="Quadratic.easeOut"/>
+	<mx:Script>
+		<![CDATA[
+			import mx.events.EffectEvent;
+			import mx.core.WindowedApplication;
+			import mx.effects.easing.Quadratic;
+			[Bindable]
+			private static var wwidth:int;
+			[Bindable]
+			private static var wheight:int;
+			private static var wleft:int;
+			private static var wtop:int;
+			private static var tmr:Timer = new Timer(750, 1);		// timer that gets set on a window move/resize to save its position when move is over
+			private static var tmr2:Timer = new Timer(300000);		// timer that plays the zoomup/down to draw attention every now and again
+			private static var mmboundsSet:Boolean = false;
+			private var mainWindow:MM;
+			
+			public function setup(mainWin:MM):void {
+				var bounds:Array = getWindowBounds();
+				this.stage.nativeWindow.x = bounds[0]; this.stage.nativeWindow.y = bounds[1]; this.width = bounds[2]; this.height = bounds[3];
+				titleArea.addEventListener(MouseEvent.MOUSE_DOWN, function(e:Event):void {stage.nativeWindow.startMove();});
+				this.stage.nativeWindow.addEventListener(NativeWindowBoundsEvent.MOVE, mmsetBounds);		// reset bounds position on a native window move
+				this.setVisible(true, false);			// set visible but no event
+				mainWindow = mainWin;
+	        	canv.addEventListener(MouseEvent.CLICK, openCloseMainWindow);
+				tmr.addEventListener(TimerEvent.TIMER_COMPLETE, timerSaveBounds);
+				zoomup.addEventListener(EffectEvent.EFFECT_END, function(e:Event):void {trace("reversing?"); zoomdown.play()});
+				//zoomup.play();
+				tmr2.addEventListener(TimerEvent.TIMER, function(e:Event):void {trace("tmrs zooming"); zoomup.play()});
+				tmr2.reset(); tmr2.start();
+			}
+			
+			private function getWindowBounds():Array {
+				// return array [x,y,w,h] of window bounds, eventually from DB
+				var wtop:int, wleft:int, wwidth:int, wheight:int;
+				if (MMDBAccess.getPref('summaryTop')) {
+					wleft = int(MMDBAccess.getPref('summaryLeft'));
+					wtop = int(MMDBAccess.getPref('summaryTop'));
+					wwidth = int(MMDBAccess.getPref('summaryWidth'));
+					wheight = int(MMDBAccess.getPref('summaryHeight'));
+					trace('read summary window bounds from DB:', wleft, wtop, wwidth, wheight);
+				} else {
+					// Not in DB so we do the initial set up
+					var win:NativeWindow = stage.nativeWindow;
+					var w:int = Screen.mainScreen.bounds.width;
+					var h:int = Screen.mainScreen.bounds.height
+					wleft = w - 150;
+					wtop = h/2;
+					wwidth = 150;
+					wheight = 171;
+					mmSaveBounds(wleft, wtop, wwidth, wheight);
+				}
+				mmboundsSet = true;
+				return ([wleft, wtop, wwidth, wheight]);
+			}
+			
+			public function setMood(source:Image):void {
+				mood.source = source.source;
+				zoomup.play();
+			}
+			
+			private function timerSaveBounds(e:Event):void {
+				// save the bounds from timer complete
+				trace('saving from timer');
+				mmSaveBounds(wleft, wtop, wwidth, wheight);
+			}
+			private function mmSaveBounds(wleft:int, wtop:int, wwidth:int, wheight:int):void {
+				// Write new bounds into the DB
+				MMDBAccess.setPref('summaryLeft', String(wleft));
+				MMDBAccess.setPref('summaryTop', String(wtop));
+				MMDBAccess.setPref('summaryWidth', String(wwidth));
+				MMDBAccess.setPref('summaryHeight', String(wheight));
+				trace('Writing bounds to DB:', wleft, wtop, wwidth, wheight);
+			}
+			
+			private function mmsetBounds(e:Event):void {
+				// Handle a move or resize by remembering the window setup for next time
+				if (!initialized) return;				// return if not set up yet, this fn can be called during window creation
+				wleft = this.stage.nativeWindow.x; wtop = this.stage.nativeWindow.y; wwidth = this.width; wheight = this.height;
+				if (tmr.running) tmr.stop();			// stop and restart timer
+				tmr.reset(); tmr.start();
+				trace("setting bounds");
+			}
+						
+			private function openCloseMainWindow(e:Event):void {
+				// callback on click on summary image, toggle open/minimize of main window
+				if (MM.mainWindowOpen) {
+					mainWindow.minimize();
+					MM.mainWindowOpen = false
+				}
+				else
+					mainWindow.openMainWindow();
+			}
+			public function closeSummary(e:Event):void {
+				if (MM.mainWindowOpen) {
+					this.close();
+				} else {
+					NativeApplication.nativeApplication.exit();	
+				}
+			}
+		]]>
+	</mx:Script>
+</mx:Window>

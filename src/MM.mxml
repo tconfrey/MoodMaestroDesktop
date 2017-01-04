@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:WindowedApplication xmlns:mx="http://www.adobe.com/2006/mxml" layout="absolute" width="500" height="365"
+	creationComplete="setup(event)" showStatusBar="false" showGripper="false" closing="mainWindowClose(event)" >
+	<mx:Canvas width="100%" height="100%" backgroundColor="0xc0c0c0">
+	<mx:Image source="@Embed(source='assets/MoodMaestro.gif')" scaleX="1" scaleY="1" horizontalCenter="0"/>
+	<mx:PopUpMenuButton id='showMenu' dataProvider="['Show History', 'Show Graph', 'Stats']" color="0x0000ff" fontSize="10" fontStyle="italic" fontWeight="normal" y="10" x="400" borderColor="0xc0c0c0" alpha="0.3" arrowButtonWidth="12"
+			buttonMode="true" useHandCursor="true" mouseChildren="false" itemClick="menuClick(event)" />
+		<!--<mx:Label id="historyBtn" text="Show History" color="0x0000ff" fontSize="12" fontStyle="italic" y="3" x="400" 
+			buttonMode="true" useHandCursor="true" mouseChildren="false" click="populateTable(event)" />-->
+	<mx:Label x="30" y="55" text="How's your mood?" fontFamily="Garamond" fontSize="24"/>
+	<mx:HBox id='pics' x="50" width="400" y="140" height="80" borderStyle="solid" horizontalScrollPolicy="off" verticalScrollPolicy="off" horizontalGap="0">
+		<mx:Image id="i1" source="assets/worst-green.jpg" height="100%" width="20%" alpha="0.75"/>
+		<mx:Image id="i2" source="assets/bad.jpg" height="100%" width="20%" alpha="0.75"/>
+		<mx:Image id="i3" source="assets/ok.jpg" height="100%" width="20%" alpha="0.75"/>
+		<mx:Image id="i4" source="assets/good.jpg" height="100%" width="20%" alpha="0.75"/>
+		<mx:Image id="i5" source="assets/best-orange" height="100%" width="20%" alpha="0.75"/>
+	</mx:HBox>
+	<mx:Label x="30" y="235" text="Why?" fontFamily="Garamond" fontSize="24"/>
+	<mx:TextInput id="why" x="50" y="270" fontFamily="Garamond" fontSize="18" width="400" backgroundColor="0xd8d8d8" textInput="limitText(event)"/>
+	<mx:Button id="btn" label="Post It" x="200" y="315" fontFamily="Verdana" fontSize="15" click="post(event)" buttonMode="true" useHandCursor="true"/>
+	<mx:Image id="btmap" source="@Embed(source='assets/gradient.gif')" x="50" />
+		
+	</mx:Canvas>
+	<mx:Script> 
+		<![CDATA[
+			import mx.controls.Label;
+		// TODO: migrate data from -2.5..+2.5 format to -5 to +5
+			import mx.charts.LineChart;
+			import mx.controls.Menu;
+			import mx.events.MenuEvent;
+			import mx.formatters.DateFormatter;
+			import flash.display.Sprite;
+			import flash.display.Graphics;
+			import mx.core.UIComponent;
+			import mx.controls.DataGrid;
+			import mx.core.Window;
+
+			private var slider:UIComponent;
+			private var sliderx:int;
+			private const bottom:int = 220;
+			private const top:int = 96;
+			private var mood:Number = 0.0;  
+			private var history:historyGrid;
+			//private var stats:tats;
+			private var summary:summaryWindow = null;
+			private var dta:DataGrid;
+			private var postParams:Object = new Object;
+			public static var mainWindowOpen:Boolean = true;
+			
+			private function setup(e:Event):void {
+				// set things up
+            	setupGraphic();
+            	MMDBAccess.createDBTables();
+				slider = new UIComponent();
+				sliderx = 250;
+				slider.addEventListener(MouseEvent.MOUSE_DOWN, sliderDownHandler);
+            	slider.addEventListener(MouseEvent.MOUSE_UP, sliderUpHandler);
+            	slider.addEventListener(MouseEvent.MOUSE_OUT, sliderUpHandler);
+            	this.addEventListener(MouseEvent.CLICK, updateMood);
+            	updateMood(null);		// initial mood set
+            	this.addChild(slider);
+            	
+            	// Set up menu styles etc
+            	var mnu:Menu = showMenu.popUp as Menu;
+            	mnu.setStyle('backgroundColor', '0xd0d0d0');
+            	mnu.setStyle('leftIconGap', 2);	mnu.width = 95; 
+			}
+			
+			
+			private function mainWindowClose(e:Event):void {
+				if (summary) {
+					this.visible = false;
+					mainWindowOpen = false;
+					e.preventDefault();
+				} else {
+					NativeApplication.nativeApplication.exit();	
+				}
+			}
+			public function openMainWindow():void {
+				trace("opening");
+				this.visible = true; 
+				this.stage.nativeWindow.visible = true;
+				mainWindowOpen = true;
+			}
+			
+			private function updateMood(e:Event):void {
+				// draw the slider
+				if (e) sliderx = this.mouseX;
+				if ((sliderx > 450) || (sliderx < 50)) return;
+				if (e && ((this.mouseY > 240) || (this.mouseY < 75))) return;		// return if mouse is not over slider, unless this is the first time thru
+				
+				// Draw slider
+				slider.graphics.clear();
+				slider.graphics.lineStyle(2, 0xf15600);
+				slider.graphics.beginFill(0xf15600);
+				slider.graphics.moveTo(sliderx, bottom);
+				slider.graphics.lineTo(sliderx-8, bottom+12);
+				slider.graphics.lineTo(sliderx+8, bottom+12);
+				slider.graphics.lineTo(sliderx, bottom);
+				slider.graphics.lineTo(sliderx, top);
+				slider.graphics.lineTo(sliderx-8, top-12);
+				slider.graphics.lineTo(sliderx+8, top-12);
+				slider.graphics.lineTo(sliderx, top);
+				slider.graphics.endFill();
+				
+				// Draw invisible rectangle around slider to allow it to be grabbed more easily
+				slider.graphics.lineStyle(0, 0xc0c0c0, 0);
+				slider.graphics.beginFill(0xf15600, 0);
+				slider.graphics.moveTo(sliderx - 25, bottom + 10);
+				slider.graphics.lineTo(sliderx + 25, bottom + 10);
+				slider.graphics.lineTo(sliderx + 25, top - 10);
+				slider.graphics.lineTo(sliderx - 25, top - 10);
+				slider.graphics.endFill();
+				slider.buttonMode = true;
+				slider.useHandCursor = true;
+				
+				// Highlight the appropriate picture
+				i1.alpha = i2.alpha = i3.alpha = i4.alpha = i5.alpha = 0.8;
+				if (sliderx > 370) {i5.alpha = 1.0;}
+				else if (sliderx > 290) {i4.alpha = 1.0;}
+				else if (sliderx > 210) {i3.alpha = 1.0;}
+				else if (sliderx > 130) {i2.alpha = 1.0;}
+				else {mood = -2; i1.alpha = 1.0;}
+				mood = (sliderx - 50)/80 - 2.5;				// slider goes from 50 to 450 pixels for the -2 to + 2 range
+				mood = int(mood*10)/10;
+				if (why.text == "Posted!") why.text="";
+				trace("sliderx=", sliderx, " mood = ", mood);
+			}
+				        
+			private function sliderDownHandler(event:MouseEvent):void {
+	            //trace("mouseDownHandler");
+	            var sprite:UIComponent = UIComponent(event.target);
+	            sprite.addEventListener(MouseEvent.MOUSE_MOVE, updateMood);
+	        }
+	
+	        private function sliderUpHandler(event:MouseEvent):void {
+	            //trace("mouseUpHandler");
+	            var sprite:UIComponent = UIComponent(event.target);
+	            sprite.removeEventListener(MouseEvent.MOUSE_MOVE, updateMood);
+	        }
+	
+	        private function sliderMoveHandler(event:MouseEvent):void {
+	            //trace("mouseMoveHandler");
+	            event.updateAfterEvent();
+	        }
+	        
+	        private function limitText(e:TextEvent):void {
+	        	// only allow 128 characters
+	        	if (why.text.length >= 128) {
+	        		trace("preventing");
+	        		e.preventDefault();
+	        	}
+	        }
+	        
+	        private function setupGraphic():void {
+	        	// Set up the graph view
+	        	var graph:UIComponent = new UIComponent();
+	        	var g:Graphics = graph.graphics;
+	        	this.addChild(graph);
+	        	g.lineStyle(1, 0x0f0f0f);
+	        	g.moveTo(50, 113);
+	        	g.lineTo(450, 113);
+	        	
+				var w:int = btmap.width;
+				var h:int = btmap.height;
+            	var bitmapData:BitmapData = new BitmapData(w,h);
+    			bitmapData.draw(btmap);
+	        	g.beginBitmapFill(bitmapData, null, false);
+	        	g.moveTo(50, 113);
+	        	g.lineTo(50, 133);
+	        	g.curveTo(150,133, 250, 113);
+	        	g.curveTo(350,93, 450, 93);
+	        	g.lineTo(450, 113);
+	        	g.lineTo(50, 113);
+	        	g.endFill();
+				btmap.parent.removeChild(btmap);
+				// Now position labels over the graph
+				var l1:Label = new Label(); l1.text = '-5';
+				l1.x = 50, l1.y = 98; this.addChild(l1);
+				var l2:Label = new Label(); l2.text = '+5';
+				l2.x = 433, l2.y = 113; this.addChild(l2);
+	        }
+	        
+	        private function post(e:Event):void {
+	        	// post new mood update to DB
+	        	var now:Date = new Date();
+	        	trace("mood=", mood, ", date=", now, ", why=", why.text);
+				// set parameter values  
+				postParams.mood = mood;
+				postParams.why = why.text;
+				postParams.date = now; 
+				MMDBAccess.postMood(postParams);				// send to DB
+				
+				/* create the mini summary window if necessary */
+				if (!summary) {
+	        		summary = new summaryWindow();
+					summary.open(false);
+	        		summary.setup(this);
+	        		summary.addEventListener(Event.CLOSING, function(e:Event):void {summary = null;});
+				}
+	        	
+				var moods:Array = [i1, i2, i3, i4, i5];
+				var moodInt:int = (mood + 2.49);
+				summary.setMood(moods[moodInt]);
+				// Text shows 'Posted' after success, this timer removes that
+				var t:Timer = new Timer(5000, 1);
+				t.addEventListener(TimerEvent.TIMER_COMPLETE, function(e:Event):void {why.text = "";});
+				t.start();
+	        }
+	        
+	        private function menuClick(e:MenuEvent):void {
+	        	// dispatch to table or graph population
+	        	if (e.index == 0) populateTable();
+	        	else if(e.index == 1) populateGraph();
+	        	else populateStats();
+	        }
+	        
+	        private function populateTable():void {
+	        	history = new historyGrid();
+	        	history.open();
+	        	history.height = 600;		// don't know why but I need to reset the window dimensions otherwise it shows up smaller
+	        	history.width = 400;
+	        	history.visible = true;
+	        	
+	        	dta = history.getDataGrid(); 
+	        	var indx:int, moodint:int;
+	        	var mood:Number;
+	        	var images:Array = ["assets/worst-green.jpg","assets/bad.jpg","assets/ok.jpg","assets/good.jpg","assets/best-orange"];
+	        	var df:DateFormatter = new DateFormatter();
+	        	df.formatString="EEE, DD MMM. at LL:NNA";
+	        	var dp:Array = MMDBAccess.getMoodData();
+	        	for each (var row:Object in dp) {
+	        		indx = row.mood + 2.49;
+	        		row.image = images[indx];
+	        		row.fdate = df.format(row.date);
+	        		mood = row.mood * 2; moodint = mood;
+	        		row.descr = "" + moodint;
+	        	}
+	        	dta.dataProvider = dp.reverse();
+	        }
+	        
+	        private function populateStats():void {
+	        	var stats:statsWindow = new statsWindow();
+	        	stats.open();
+	        	stats.height = 600;
+	        	stats.width = 400;
+	        	stats.visible = true;
+	        }
+	        
+	        
+	        private function populateGraph():void {
+	        	var graph:graphWindow = new graphWindow();
+	        	graph.open();
+	        	
+	        	var dta:LineChart = graph.getChart(); 
+	        	var moods:Array = MMDBAccess.getMoodData();
+	        	// the following strange machinations are converting the date obtained from the DB to a formatted string and then back to a date. 
+	        	// For some reason the direct conversion to a Date does not work.
+	        	var df:DateFormatter = new DateFormatter();
+	        	df.formatString="EEE MMM DD YYYY LL:NN A";
+	        	var mx:String = moods[moods.length - 1].date;
+	        	var maxDateStr:String = df.format(mx) as String;
+	        	var mn:String = moods[0].date;
+	        	var minDateStr:String = df.format(mn) as String;
+	        	var minDate:Date = new Date(minDateStr);
+	        	var maxDate:Date = new Date(maxDateStr);
+	        
+	        	for each (var row:Object in MMDBAccess.getMoodData()) {
+	        		row.fdate = df.format(row.date);
+	        		row.mood5 = row.mood * 2;
+	        	}
+	        	graph.setMinMax(minDate, maxDate);
+	        	dta.dataProvider = moods;
+	        	graph.setTitle();
+	        }
+	        
+			/*  This function allows an icon to be showed for the program while running in development. But since I got the proper icon model working with the generated air file I don't need it any more
+			private function createicon():void {
+				// create the application 
+				var w:int = icn.width;
+				var h:int = icn.height;
+            	var bitmapData:BitmapData = new BitmapData(w,h);
+    			bitmapData.draw(icn)
+            	NativeApplication.nativeApplication.icon.bitmaps = [bitmapData];
+            	if (NativeApplication.supportsDockIcon) {
+            		DockIcon(NativeApplication.nativeApplication.icon).bitmaps = [bitmapData];
+            	} 
+            	if (NativeApplication.supportsSystemTrayIcon) {
+            		SystemTrayIcon(NativeApplication.nativeApplication.icon).bitmaps = [bitmapData];
+            	}
+				this.removeChild(icn);
+			}
+			
+			<!--<mx:Image id="icn" source="assets/tragedycomedy128.png" />-->
+			*/
+
+		]]>
+	</mx:Script>
+</mx:WindowedApplication>

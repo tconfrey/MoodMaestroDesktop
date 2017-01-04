@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Window xmlns:mx="http://www.adobe.com/2006/mxml" layout="absolute" width="400" height="600" resizable="true" showStatusBar="false" type="lightweight" systemChrome="none" title="History" >
+	<mx:DataGrid id="dataGrid" width="100%" top="0" bottom="0" rowHeight="75" borderStyle="solid" borderThickness="2" borderColor="0x909090" borderSides="bottom">
+		<mx:columns>
+			<mx:DataGridColumn headerText="Mood" dataField="image" width="60" sortCompareFunction="sortMoods">
+				<mx:itemRenderer>
+					<mx:Component>
+						<mx:VBox verticalScrollPolicy="off" horizontalScrollPolicy="off" verticalGap="0">
+							<mx:Label text="{data.descr}" fontSize="9" fontWeight="bold" height="15"/>
+							<mx:Image source="{data.image}" height="50"/>
+						</mx:VBox>
+					</mx:Component>
+				</mx:itemRenderer>
+			</mx:DataGridColumn>
+			<mx:DataGridColumn headerText="Why" dataField="why" wordWrap="true" width="200"/>
+			<mx:DataGridColumn headerText="When" dataField="fdate" wordWrap="true" width="140" sortCompareFunction="sortDates"/>
+		</mx:columns>
+		
+	</mx:DataGrid>
+	<!-- <mx:Button label="Close" horizontalCenter="0" bottom="2" click="this.close()"/>	-->
+	<mx:Script>
+		<![CDATA[
+			import mx.collections.ArrayCollection;
+			public function getDataGrid(): DataGrid {return dataGrid;}
+			private function sortDates(row1:Object, row2:Object):int {
+				return (row1.date == row2.date) ? 0 : (row1.date < row2.date) ? -1 : 1;
+			}
+			private function sortMoods(row1:Object, row2:Object):int {
+				return (row1.mood >= row2.mood) ? -1 : 1;
+			}
+		]]>
+	</mx:Script>
+</mx:Window>

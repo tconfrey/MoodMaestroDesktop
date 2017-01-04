@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Window xmlns:mx="http://www.adobe.com/2006/mxml" layout="absolute" width="600" height="400" resizable="true" showStatusBar="false" type="lightweight" systemChrome="none" title="statsWindow" >	
+	<mx:VBox>
+		
+		<mx:Button label="Get Stats" click="figureItOut(event)" />
+		<mx:Label text="{testVariable}" fontSize="24" fontWeight="bold"/>
+		<mx:Label text="Total Number of data points" fontSize="24" fontWeight="bold"/>
+		<mx:Label text="{totalPoints}" fontSize="16" />
+		<mx:Label text="Lifetime Average Mood" fontSize="24" fontWeight="bold" />
+		<mx:Label text="{lifeMood}" fontSize="16" />
+		<mx:Label text="Average Mood Per Year" fontSize="24" fontWeight="bold"/>
+		<mx:Label text="{averagePerYear}" fontSize = "16" />
+		<mx:Label text="Average Mood Per Month" fontSize="24" fontWeight="bold"/>
+		<mx:Label text="Happiest Year" fontSize="24" fontWeight="bold"/>
+		<mx:Label text="Happiest Month" fontSize="24" fontWeight="bold"/>
+		<mx:Label text="Total Time Since First Entry" fontSize="24" fontWeight="bold"/>
+		<mx:Label text="{totalTime}" fontSize = "16" />
+
+	</mx:VBox>
+	
+	<mx:Script>
+		<![CDATA[
+		import mx.formatters.DateFormatter;
+		[Bindable]
+		private var testVariable:String;
+		[Bindable]
+		private var totalPoints:String;
+		[Bindable]
+		private var lifeMood:String;
+		[Bindable]
+		private var totalTime:String;
+		[Bindable]
+		private var averagePerYear:String;
+		
+		protected function figureItOut(event:Event):void
+		{
+			var moods:Array = MMDBAccess.getMoodData();
+	       	
+	       	TotalPosts(moods); //calculate the total number of mood posts and display it
+	       	testVariable = String(moods.length);
+	       	Average(moods);
+	       	TotalTime(moods); //calculate the total time that mm has been used
+	       	AverageYears(moods);
+		}
+		
+		protected function TotalTime(moods:Array):void
+		{
+			var now:Date = new Date();
+			var df:DateFormatter = new DateFormatter();
+        	df.formatString="EEE MMM DD YYYY LL:NN A";
+        	var mn:String = moods[0].date;
+        	var minDateStr:String = df.format(mn) as String;
+        	var minDate:Date = new Date(minDateStr);
+        	var milliNow:Number = now.valueOf();
+        	var milliMin:Number = minDate.valueOf();
+        	var elapsedMilli:Number = milliNow - milliMin;
+        	now.setTime(elapsedMilli);
+        	totalTime = String(now.getFullYear() - 1970) + " Years " + String(now.getMonth()) + " Months " + String(now.getDay()) + " Days";
+		}
+		protected function AverageYears(moods:Array):void
+		{
+	       	var df:DateFormatter = new DateFormatter();
+	       	df.formatString="EEE MMM DD YYYY LL:NN A";
+	       	
+	       	var startDateStr:String = df.format(moods[0].date) as String;
+	       	var startDate:Date = new Date(startDateStr);
+	       	var startYear:int = startDate.getFullYear();
+	       	var moodYear:int = startYear; //keeps track of the year of the mood posted
+	       	var i:int = 0;
+	       	var sum:int = 0;
+	       	while(startDate.getFullYear() == startYear)
+	       	{
+	       		sum += moods[i].mood * 2;
+	       		i++;
+	       		startDateStr = df.format(moods[i].date) as String;
+	       		startDate = new Date(startDateStr);
+	       	}
+			testVariable = String(startYear) + ": Average: " + String(sum / i + 1);
+		}
+		protected function Average(moods:Array):void
+		{
+			var sum:int = 0;
+			for each (var moodLine:Object in moods) {
+	        		sum += moodLine.mood * 2; //I think the moods are on a 2.5 scale, so need to scale them to 5
+	        	}
+	        lifeMood = String(sum / moods.length);
+		}
+		protected function TotalPosts(moods:Array):void
+		{
+			totalPoints = String(moods.length);
+		}
+		]]>
+	</mx:Script>
+</mx:Window>
